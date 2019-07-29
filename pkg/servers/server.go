@@ -5,7 +5,7 @@ type Server interface {
 	SetPollingInterval(interval int)
 	ApfellBaseURL() string
 	SetApfellBaseURL(url string)
-	PostResponse(taskid int, data []byte)
+	PostResponse(taskid int, data []byte) []byte
 	GetNextTask(apfellID int) []byte
 	SendClientMessage(apfellID int, data []byte)
 }
