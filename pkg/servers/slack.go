@@ -17,16 +17,6 @@ type SlackC2 struct {
 	Debug        bool
 }
 
-//Message - struct definition for messages between clients and the server
-type Message struct {
-	Tag    string `json:"tag"`
-	MType  int    `json:"mtype"`
-	IDType int    `json:"idtype"`
-	ID     int    `json:"id"`
-	Enc    bool   `json:"enc"`
-	Data   string `json:"data"`
-}
-
 func (s SlackC2) NewServer() Server {
 	return &SlackC2{}
 }
@@ -56,7 +46,7 @@ func (s SlackC2) GetNextTask(apfellID int) []byte {
 	return make([]byte, 0)
 }
 
-func (s SlackC2) PostResponse(taskid int, data []byte) []byte {
+func (s SlackC2) PostResponse(taskid int, output []byte) []byte {
 	return make([]byte, 0)
 }
 

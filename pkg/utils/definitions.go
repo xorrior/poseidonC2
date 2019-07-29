@@ -1,16 +1,5 @@
 package utils
 
-const (
-	//TaskMsg - Messages for apfell task requests
-	TaskMsg = 0
-	//KeyXMsg - Messages for apfell EKE, DH, or static AES key exchange
-	KeyXMsg = 1
-	//ResponseMsg - Messages for apfell task responses
-	ResponseMsg = 2
-	//FileMsg - Messages for apfell file downloads/uploads
-	FileMsg = 3
-)
-
 // Task used to define a task received from apfell
 type Task struct {
 	Command string `json:"command"`
