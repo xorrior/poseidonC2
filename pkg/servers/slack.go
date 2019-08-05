@@ -1,12 +1,5 @@
 package servers
 
-import (
-	"log"
-	"os"
-
-	"github.com/nlopes/slack"
-)
-
 //Slack - Struct definition for slack c2
 type SlackC2 struct {
 	Key          string
@@ -17,6 +10,7 @@ type SlackC2 struct {
 	Debug        bool
 }
 
+/*
 func (s SlackC2) NewServer() Server {
 	return &SlackC2{}
 }
@@ -98,3 +92,4 @@ func (s SlackC2) Run() {
 	}
 
 }
+*/

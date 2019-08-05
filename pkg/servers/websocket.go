@@ -11,9 +11,11 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/kabukky/httpscerts"
 	"github.com/xorrior/poseidon/pkg/utils/structs"
 )
 
@@ -21,7 +23,6 @@ type WebsocketC2 struct {
 	PollInterval int
 	BaseURL      string
 	BindAddress  string
-	BindPort     int
 	SSL          bool
 	SocketURI    string
 	Defaultpage  string
@@ -34,6 +35,10 @@ var upgrader = websocket.Upgrader{}
 
 func (s WebsocketC2) NewServer() Server {
 	return &WebsocketC2{}
+}
+
+func (s *WebsocketC2) SetBindAddress(addr string) {
+	s.BindAddress = addr
 }
 
 //PollingInterval - Returns the polling interval
@@ -54,6 +59,11 @@ func (s WebsocketC2) ApfellBaseURL() string {
 //SetApfellBaseURL - Sets the base url for apfell
 func (s *WebsocketC2) SetApfellBaseURL(url string) {
 	s.BaseURL = url
+}
+
+//SetSocketURI - Set socket uri
+func (s *WebsocketC2) SetSocketURI(uri string) {
+	s.SocketURI = uri
 }
 
 func (s WebsocketC2) GetNextTask(apfellID int) []byte {
@@ -99,7 +109,7 @@ func (s *WebsocketC2) postRESTResponse(urlEnding string, data []byte) []byte {
 func (s *WebsocketC2) htmlPostData(urlEnding string, sendData []byte) []byte {
 	url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), urlEnding)
 	//log.Println("Sending POST request to url: ", url)
-	s.websocketlog(fmt.Sprintln("Sending POST request to: ", url))
+	s.Websocketlog(fmt.Sprintln("Sending POST request to: ", url))
 
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(sendData))
 	contentLength := len(sendData)
@@ -108,12 +118,12 @@ func (s *WebsocketC2) htmlPostData(urlEnding string, sendData []byte) []byte {
 	resp, err := client.Do(req)
 
 	if err != nil {
-		s.websocketlog(fmt.Sprintf("Error sending POST request: %s", err.Error()))
+		s.Websocketlog(fmt.Sprintf("Error sending POST request: %s", err.Error()))
 		return make([]byte, 0)
 	}
 
 	if resp.StatusCode != 200 {
-		s.websocketlog(fmt.Sprintf("Did not receive 200 response code: %d", resp.StatusCode))
+		s.Websocketlog(fmt.Sprintf("Did not receive 200 response code: %d", resp.StatusCode))
 		return make([]byte, 0)
 	}
 
@@ -122,7 +132,7 @@ func (s *WebsocketC2) htmlPostData(urlEnding string, sendData []byte) []byte {
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		s.websocketlog(fmt.Sprintf("Error reading response body: %s", err.Error()))
+		s.Websocketlog(fmt.Sprintf("Error reading response body: %s", err.Error()))
 		return make([]byte, 0)
 	}
 
@@ -137,19 +147,19 @@ func (s *WebsocketC2) htmlGetData(url string) []byte {
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		s.websocketlog(fmt.Sprintf("Error creating http request: %s", err.Error()))
+		s.Websocketlog(fmt.Sprintf("Error creating http request: %s", err.Error()))
 		return make([]byte, 0)
 	}
 
 	resp, err := client.Do(req)
 
 	if err != nil {
-		s.websocketlog(fmt.Sprintf("Error completing GET request: %s", err.Error()))
+		s.Websocketlog(fmt.Sprintf("Error completing GET request: %s", err.Error()))
 		return make([]byte, 0)
 	}
 
 	if resp.StatusCode != 200 {
-		s.websocketlog(fmt.Sprintf("Did not receive 200 response code: %d", resp.StatusCode))
+		s.Websocketlog(fmt.Sprintf("Did not receive 200 response code: %d", resp.StatusCode))
 		return make([]byte, 0)
 	}
 
@@ -169,34 +179,28 @@ func (s *WebsocketC2) SetDebug(debug bool) {
 	s.Debug = debug
 }
 
-func (s *WebsocketC2) SetLogFile(file string) {
-	s.Logfile = file
-}
-
+//GetDefaultPage - Get the default html page
 func (s WebsocketC2) GetDefaultPage() string {
 	return s.Defaultpage
 }
 
+//SetDefaultPage - Set the default html page
 func (s *WebsocketC2) SetDefaultPage(newpage string) {
 	s.Defaultpage = newpage
 }
 
-func (s *WebsocketC2) SetSSL(usessl bool) {
-	s.SSL = usessl
-}
-
-func (s *WebsocketC2) socketHandler(w http.ResponseWriter, r *http.Request) {
+//SocketHandler - Websockets handler
+func (s WebsocketC2) SocketHandler(w http.ResponseWriter, r *http.Request) {
 	//Upgrade the websocket connection
 	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.websocketlog(fmt.Sprintf("Websocket upgrade failed: %s\n", err.Error()))
+		s.Websocketlog(fmt.Sprintf("Websocket upgrade failed: %s\n", err.Error()))
 		http.Error(w, "websocket connection failed", http.StatusBadRequest)
 		return
 	}
 
-	//c := make(chan interface{})
-	s.websocketlog("Received new websocket client")
+	s.Websocketlog("Received new websocket client")
 
 	go s.manageClient(conn)
 
@@ -213,7 +217,7 @@ LOOP:
 		err := c.ReadJSON(&m)
 
 		if err != nil {
-			s.websocketlog(fmt.Sprintf("Error reading from websocket %s\n. Exiting session", err.Error()))
+			s.Websocketlog(fmt.Sprintf("Error reading from websocket %s\n. Exiting session", err.Error()))
 			return
 		}
 
@@ -221,7 +225,7 @@ LOOP:
 		case CheckInMsg:
 			// Forward the checkin data to apfell. This data should not be encrypted
 			if m.Enc {
-				s.websocketlog("Warning: Received encrypted data for checkin. Exiting")
+				s.Websocketlog("Warning: Received encrypted data for checkin. Exiting")
 				break LOOP
 			}
 
@@ -236,7 +240,7 @@ LOOP:
 			// We don't need to set the ID or IDtype.
 
 			if err = c.WriteJSON(re); err != nil {
-				s.websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
 				break LOOP
 			}
 
@@ -245,7 +249,7 @@ LOOP:
 		case EKE:
 			// Peform EKE with apfell
 			if !m.Enc {
-				s.websocketlog("Warning: Received unencrypted data for EKE. exiting")
+				s.Websocketlog("Warning: Received unencrypted data for EKE. exiting")
 				break LOOP
 			}
 
@@ -253,7 +257,7 @@ LOOP:
 				// Post the RSA Pub key to apfell and return the new AES key
 				resp := s.htmlPostData(fmt.Sprintf("api/v1.2/crypto/EKE/%s", m.ID), []byte(m.Data))
 				if len(resp) == 0 {
-					s.websocketlog("Received empty response from apfell, exiting..")
+					s.Websocketlog("Received empty response from apfell, exiting..")
 					break LOOP
 				}
 
@@ -263,7 +267,7 @@ LOOP:
 				re.MType = EKE
 
 				if err = c.WriteJSON(re); err != nil {
-					s.websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
 					break LOOP
 				}
 			}
@@ -272,7 +276,7 @@ LOOP:
 				// Post the encrypted checkin data to apfell and return the checkin metadata
 				resp := s.htmlPostData(fmt.Sprintf("api/v1.2/crypto/EKE/%s", m.ID), []byte(m.Data))
 				if len(resp) == 0 {
-					s.websocketlog("Received empty response from apfell, exiting..")
+					s.Websocketlog("Received empty response from apfell, exiting..")
 					break LOOP
 				}
 
@@ -282,7 +286,7 @@ LOOP:
 				re.MType = EKE
 
 				if err = c.WriteJSON(re); err != nil {
-					s.websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
 					break LOOP
 				}
 			}
@@ -292,14 +296,14 @@ LOOP:
 		case AES:
 			// Facilitate the AES checkin
 			if !m.Enc {
-				s.websocketlog("Warning: Received unencrypted data for EKE. exiting")
+				s.Websocketlog("Warning: Received unencrypted data for EKE. exiting")
 				break LOOP
 			}
 
 			if m.IDType == UUIDType {
 				resp := s.htmlPostData(fmt.Sprintf("api/v1.2/crypto/aes_psk/%s", m.ID), []byte(m.Data))
 				if len(resp) == 0 {
-					s.websocketlog("Received empty response from apfell, exiting..")
+					s.Websocketlog("Received empty response from apfell, exiting..")
 					break LOOP
 				}
 
@@ -309,7 +313,7 @@ LOOP:
 				re.MType = AES
 
 				if err = c.WriteJSON(re); err != nil {
-					s.websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
 					break LOOP
 				}
 			}
@@ -323,7 +327,7 @@ LOOP:
 				resp := s.GetNextTask(i)
 
 				if len(resp) == 0 {
-					s.websocketlog("Received empty response from Apfell.... retrying ")
+					s.Websocketlog("Received empty response from Apfell.... retrying ")
 					time.Sleep(time.Duration(s.PollingInterval()) * time.Second)
 
 					resp = s.GetNextTask(i)
@@ -334,7 +338,7 @@ LOOP:
 				re.MType = TaskMsg
 
 				if err = c.WriteJSON(re); err != nil {
-					s.websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
 					break LOOP
 				}
 
@@ -352,7 +356,7 @@ LOOP:
 				re.MType = ResponseMsg
 
 				if err = c.WriteJSON(re); err != nil {
-					s.websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
 					break LOOP
 				}
 			}
@@ -372,7 +376,7 @@ LOOP:
 				re.MType = FileMsg
 
 				if err = c.WriteJSON(re); err != nil {
-					s.websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
 					break LOOP
 				}
 			}
@@ -383,7 +387,8 @@ LOOP:
 
 }
 
-func (s WebsocketC2) serveDefaultPage(w http.ResponseWriter, r *http.Request) {
+//ServeDefaultPage - HTTP handler
+func (s WebsocketC2) ServeDefaultPage(w http.ResponseWriter, r *http.Request) {
 	log.Println("Received request: ", r.URL)
 
 	if r.URL.Path == "/" && r.Method == "GET" {
@@ -397,22 +402,80 @@ func (s WebsocketC2) serveDefaultPage(w http.ResponseWriter, r *http.Request) {
 }
 
 //Run - main function for the websocket profile
-func (s WebsocketC2) Run() {
-	f, err := os.Create("websocket.log")
-	if err != nil {
-		log.Println("Failed to create log file for websockets server")
-		return
+func (s WebsocketC2) Run(config interface{}) {
+	cf := config.(WsConfig)
+	if cf.Debug {
+		f, err := os.Create(cf.Logfile)
+		if err != nil {
+			log.Println("Failed to create log file for websockets server")
+			return
+		}
+
+		logger = log.New(f, "poseidon-websocket: ", log.Lshortfile|log.LstdFlags)
 	}
 
-	logger = log.New(f, "poseidon-websocket: ", log.Lshortfile|log.LstdFlags)
+	s.SetDefaultPage(cf.Defaultpage)
+	s.SetApfellBaseURL(cf.BaseURL)
+	s.SetBindAddress(cf.BindAddress)
+	s.SetSocketURI(cf.SocketURI)
 
 	// Handle requests to the base uri
-	http.HandleFunc("/", s.serveDefaultPage)
+	http.HandleFunc("/", s.ServeDefaultPage)
 	// Handle requests to the websockets uri
-	http.HandleFunc(fmt.Sprintf("/%s", s.SocketURI), s.socketHandler)
+	http.HandleFunc(fmt.Sprintf("/%s", s.SocketURI), s.SocketHandler)
+
+	// Setup all of the options according to the configuration
+	if !strings.Contains(cf.SSLKey, "") && !strings.Contains(cf.SSLCert, "") {
+
+		// copy the key and cert to the local directory
+		keyfile, err := ioutil.ReadFile(cf.SSLKey)
+		if err != nil {
+			log.Println("Unable to read key file ", err.Error())
+		}
+
+		err = ioutil.WriteFile("key.pem", keyfile, 0644)
+		if err != nil {
+			log.Println("Unable to write key file ", err.Error())
+		}
+
+		certfile, err := ioutil.ReadFile(cf.SSLCert)
+		if err != nil {
+			log.Println("Unable to read cert file ", err.Error())
+		}
+
+		err = ioutil.WriteFile("cert.pem", certfile, 0644)
+		if err != nil {
+			log.Println("Unable to write cert file ", err.Error())
+		}
+	}
+
+	if cf.UseSSL {
+		err := httpscerts.Check("cert.pem", "key.pem")
+		if err != nil {
+			s.Websocketlog(fmt.Sprintf("Errors in cert.pem or key.pem %s", err.Error()))
+			err = httpscerts.Generate("cert.pem", "key.pem", cf.BindAddress)
+			if err != nil {
+				log.Fatal("Error generating https cert")
+				os.Exit(1)
+			}
+		}
+
+		s.Websocketlog(fmt.Sprintf("Starting SSL server at https://%s and wss://%s", cf.BindAddress, cf.BindAddress))
+		err = http.ListenAndServeTLS(cf.BindAddress, "cert.pem", "key.pem", nil)
+		if err != nil {
+			log.Fatal("Failed to start raven server: ", err)
+		}
+	} else {
+		s.Websocketlog(fmt.Sprintf("Starting server at http://%s and ws://%s", cf.BindAddress, cf.BindAddress))
+		err := http.ListenAndServe(cf.BindAddress, nil)
+		if err != nil {
+			log.Fatal("Failed to start raven server: ", err)
+		}
+	}
 }
 
-func (s WebsocketC2) websocketlog(msg string) {
+//Websocketlog - logging function
+func (s WebsocketC2) Websocketlog(msg string) {
 	if logger != nil {
 		logger.Println(msg)
 	}
