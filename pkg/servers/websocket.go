@@ -452,7 +452,7 @@ func (s WebsocketC2) Run(config interface{}) {
 	if cf.UseSSL {
 		err := httpscerts.Check("cert.pem", "key.pem")
 		if err != nil {
-			s.Websocketlog(fmt.Sprintf("Errors in cert.pem or key.pem %s", err.Error()))
+			s.Websocketlog(fmt.Sprintf("Error for cert.pem or key.pem %s", err.Error()))
 			err = httpscerts.Generate("cert.pem", "key.pem", cf.BindAddress)
 			if err != nil {
 				log.Fatal("Error generating https cert")
