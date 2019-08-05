@@ -1,8 +1,7 @@
 {
     "pollintervall": 10,
     "baseurl": "http://127.0.0.1/",
-    "bindaddress": "0.0.0.0",
-    "bindport": 9443,
+    "bindaddress": "0.0.0.0:9443",
     "ssl": true,
     "sslkey":"",
     "sslcert":"",
