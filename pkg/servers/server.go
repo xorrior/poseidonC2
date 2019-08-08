@@ -25,12 +25,14 @@ const (
 	TASKIDType = 10
 )
 
-// WsConfig - struct for websockets configuration
-type WsConfig struct {
+// C2Config - struct for server configuration
+type C2Config struct {
 	PollInterval int    `json:"pollinterval"`
 	BaseURL      string `json:"baseurl"`
 	BindAddress  string `json:"bindaddress"`
-	SocketURI    string `json:"wsendpoint"`
+	SocketURI    string `json:"websocketuri"`
+	SlackChannel string `json:"slackchannel"`
+	SlackAPIToken string `json:"slackapitoken"`
 	SSLKey       string `json:"sslkey"`
 	SSLCert      string `json:"sslcert"`
 	UseSSL       bool   `json:"usessl"`
@@ -57,6 +59,9 @@ type Message struct {
 	MType  int    `json:"mtype"`
 	IDType int    `json:"idtype"`
 	ID     string `json:"id"`
-	Enc    bool   `json:"enc"`
 	Data   string `json:"data"`
+}
+
+func NewInstance() interface{} {
+	return newServer()
 }

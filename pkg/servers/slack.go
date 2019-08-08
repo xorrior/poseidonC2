@@ -1,3 +1,5 @@
+// +build slack
+
 package servers
 
 //Slack - Struct definition for slack c2
@@ -11,7 +13,7 @@ type SlackC2 struct {
 }
 
 /*
-func (s SlackC2) NewServer() Server {
+func newServer() Server {
 	return &SlackC2{}
 }
 

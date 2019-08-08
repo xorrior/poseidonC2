@@ -1,3 +1,5 @@
+// +build websocket
+
 package servers
 
 import (
@@ -32,7 +34,7 @@ type WebsocketC2 struct {
 var logger *log.Logger
 var upgrader = websocket.Upgrader{}
 
-func (s WebsocketC2) NewServer() Server {
+func newServer() Server {
 	return &WebsocketC2{}
 }
 
@@ -206,7 +208,7 @@ func (s WebsocketC2) SocketHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *WebsocketC2) manageClient(c *websocket.Conn) {
-	defer func() { _ = c.Close() }()
+
 	var apfellid string
 
 LOOP:
@@ -216,23 +218,18 @@ LOOP:
 		err := c.ReadJSON(&m)
 
 		if err != nil {
-			s.Websocketlog(fmt.Sprintf("Error reading from websocket %s\n. Exiting session", err.Error()))
+			s.Websocketlog(fmt.Sprintf("Read error %s. Exiting session", err.Error()))
 			return
 		}
 
 		switch m.MType {
 		case CheckInMsg:
 			// Forward the checkin data to apfell. This data should not be encrypted
-			if m.Enc {
-				s.Websocketlog("Warning: Received encrypted data for checkin. Exiting")
-				break LOOP
-			}
 
 			resp := s.htmlPostData("api/v1.3/callbacks/", []byte(m.Data))
 
 			// Create the msg to respond to the client
 			re := Message{}
-			re.Enc = false
 			re.Data = base64.StdEncoding.EncodeToString(resp)
 			re.MType = CheckInMsg
 
@@ -247,13 +244,10 @@ LOOP:
 
 		case EKE:
 			// Peform EKE with apfell
-			if !m.Enc {
-				s.Websocketlog("Warning: Received unencrypted data for EKE. exiting")
-				break LOOP
-			}
 
 			if m.IDType == UUIDType {
 				// Post the RSA Pub key to apfell and return the new AES key
+				s.Websocketlog("Received EKE message with UUID")
 				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
 				if len(resp) == 0 {
 					s.Websocketlog("Received empty response from apfell, exiting..")
@@ -261,7 +255,6 @@ LOOP:
 				}
 
 				re := Message{}
-				re.Enc = true
 				re.Data = string(resp)
 				re.MType = EKE
 
@@ -273,6 +266,7 @@ LOOP:
 
 			if m.IDType == SESSIDType {
 				// Post the encrypted checkin data to apfell and return the checkin metadata
+				s.Websocketlog("Received EKE message with Session ID")
 				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
 				if len(resp) == 0 {
 					s.Websocketlog("Received empty response from apfell, exiting..")
@@ -280,7 +274,6 @@ LOOP:
 				}
 
 				re := Message{}
-				re.Enc = true
 				re.Data = string(resp)
 				re.MType = EKE
 
@@ -294,10 +287,6 @@ LOOP:
 
 		case AES:
 			// Facilitate the AES checkin
-			if !m.Enc {
-				s.Websocketlog("Warning: Received unencrypted data for EKE. exiting")
-				break LOOP
-			}
 
 			if m.IDType == UUIDType {
 				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/aes_psk/%s", m.ID), []byte(m.Data))
@@ -307,7 +296,6 @@ LOOP:
 				}
 
 				re := Message{}
-				re.Enc = true
 				re.Data = string(resp)
 				re.MType = AES
 
@@ -388,20 +376,19 @@ LOOP:
 //ServeDefaultPage - HTTP handler
 func (s WebsocketC2) ServeDefaultPage(w http.ResponseWriter, r *http.Request) {
 	log.Println("Received request: ", r.URL)
-
-	if r.URL.Path == "/" && r.Method == "GET" {
+	log.Println("URI Path ", r.URL.Path)
+	if (r.URL.Path == "/" || r.URL.Path == "/index.html") && r.Method == "GET" {
 		// Serve the default page if we receive a GET request at the base URI
 		http.ServeFile(w, r, s.GetDefaultPage())
-		return
 	}
 
-	http.Error(w, "Not found", http.StatusNotFound)
+	http.Error(w, "Not Found", http.StatusNotFound)
 	return
 }
 
 //Run - main function for the websocket profile
 func (s WebsocketC2) Run(config interface{}) {
-	cf := config.(WsConfig)
+	cf := config.(C2Config)
 	if cf.Debug {
 		f, err := os.Create(cf.Logfile)
 		if err != nil {

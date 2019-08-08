@@ -1,0 +1,14 @@
+{
+    "pollintervall": 10,
+    "baseurl": "http://127.0.0.1/",
+    "bindaddress": "0.0.0.0:9005",
+    "ssl": false,
+    "sslkey":"",
+    "sslcert":"",
+    "websocketuri": "socket",
+    "slackchannel":"",
+    "slackapitoken":"",
+    "defaultpage": "index.html",
+    "logfile": "server.log",
+    "debug": true
+}
