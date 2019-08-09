@@ -2,6 +2,13 @@
 
 package servers
 
+import (
+	"log"
+	"os"
+
+	"github.com/nlopes/slack"
+)
+
 //Slack - Struct definition for slack c2
 type SlackC2 struct {
 	Key          string
@@ -12,7 +19,6 @@ type SlackC2 struct {
 	Debug        bool
 }
 
-/*
 func newServer() Server {
 	return &SlackC2{}
 }
@@ -37,16 +43,16 @@ func (s *SlackC2) SetApfellBaseURL(url string) {
 	s.BaseURL = url
 }
 
-func (s SlackC2) GetNextTask(apfellID int) []byte {
+func (s SlackC2) GetNextTask(apfellID string) []byte {
 	//place holder
 	return make([]byte, 0)
 }
 
-func (s SlackC2) PostResponse(taskid int, output []byte) []byte {
+func (s SlackC2) PostResponse(taskid string, output []byte) []byte {
 	return make([]byte, 0)
 }
 
-func (s SlackC2) SendClientMessage(apfellID int, data []byte) {
+func (s SlackC2) SendClientMessage(apfellID string, data []byte) {
 
 }
 
@@ -66,9 +72,25 @@ func (s *SlackC2) SetKey(newkey string) {
 	s.Key = newkey
 }
 
-func (s SlackC2) Run() {
+func (s *SlackC2) SetChannelID(ch string) {
+	s.ChannelID = ch
+}
+
+func (s SlackC2) GetChannelID() string {
+	return s.ChannelID
+}
+
+func (s *SlackC2) Run(config interface{}) {
+
+	cf := config.(C2Config)
+	s.SetKey(cf.SlackAPIToken)
+	s.SetChannelID(cf.SlackChannel)
+	s.SetApfellBaseURL(cf.BaseURL)
+	s.SetDebug(cf.Debug)
+	s.SetLogFile(cf.Logfile)
+	s.SetPollingInterval(cf.PollInterval)
 	// Set debug and logging options
-	f, _ := os.Create("slack.log")
+	f, _ := os.Create(s.LogFile)
 	logger := log.New(f, "poseidon-slackc2: ", log.Lshortfile|log.LstdFlags)
 	api := slack.New(s.GetKey(), slack.OptionDebug(s.Debug), slack.OptionLog(logger))
 
@@ -90,8 +112,8 @@ func (s SlackC2) Run() {
 		case *slack.MessageEvent:
 			api.Debugf("Received new message event: %+v\n", ev)
 			//TODO: Handle Messages
+
 		}
 	}
 
 }
-*/

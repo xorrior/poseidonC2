@@ -225,12 +225,12 @@ LOOP:
 		switch m.MType {
 		case CheckInMsg:
 			// Forward the checkin data to apfell. This data should not be encrypted
-
+			s.Websocketlog("Received CheckIn msg")
 			resp := s.htmlPostData("api/v1.3/callbacks/", []byte(m.Data))
 
 			// Create the msg to respond to the client
 			re := Message{}
-			re.Data = base64.StdEncoding.EncodeToString(resp)
+			re.Data = string(resp)
 			re.MType = CheckInMsg
 
 			// We don't need to set the ID or IDtype.
@@ -287,11 +287,11 @@ LOOP:
 
 		case AES:
 			// Facilitate the AES checkin
-
+			s.Websocketlog("Received AESPSK msg with UUID")
 			if m.IDType == UUIDType {
 				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/aes_psk/%s", m.ID), []byte(m.Data))
 				if len(resp) == 0 {
-					s.Websocketlog("Received empty response from apfell, exiting..")
+					s.Websocketlog("Received empty response from apfell")
 					break LOOP
 				}
 
@@ -309,6 +309,7 @@ LOOP:
 		case TaskMsg:
 			// Handle task request from client
 			if m.IDType == ApfellIDType {
+				s.Websocketlog("Received Task Msg")
 				apfellid = m.ID
 				resp := s.GetNextTask(m.ID)
 
@@ -334,6 +335,7 @@ LOOP:
 		case ResponseMsg:
 			// Handle task responses
 			if m.IDType == TASKIDType {
+				s.Websocketlog("Received Task response msg")
 				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/responses/%s", m.ID), []byte(m.Data))
 
 				re := Message{}
@@ -351,6 +353,7 @@ LOOP:
 		case FileMsg:
 			// Handle file uploads
 			if m.IDType == FileIDType {
+				s.Websocketlog("Received file msg")
 				endpoint := fmt.Sprintf("api/v1.3/files/%d/callbacks/%s", m.ID, apfellid)
 				url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), endpoint)
 				resp := s.htmlGetData(url)
