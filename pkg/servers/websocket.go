@@ -172,10 +172,6 @@ func (s *WebsocketC2) htmlGetData(url string) []byte {
 
 }
 
-func (s WebsocketC2) SendClientMessage(apfellID string, data []byte) {
-
-}
-
 func (s *WebsocketC2) SetDebug(debug bool) {
 	s.Debug = debug
 }
@@ -208,8 +204,6 @@ func (s WebsocketC2) SocketHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *WebsocketC2) manageClient(c *websocket.Conn) {
-
-	var apfellid string
 
 LOOP:
 	for {
@@ -245,128 +239,105 @@ LOOP:
 		case EKE:
 			// Peform EKE with apfell
 
-			if m.IDType == UUIDType {
-				// Post the RSA Pub key to apfell and return the new AES key
-				s.Websocketlog("Received EKE message with UUID")
-				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
-				if len(resp) == 0 {
-					s.Websocketlog("Received empty response from apfell, exiting..")
-					break LOOP
-				}
-
-				re := Message{}
-				re.Data = string(resp)
-				re.MType = EKE
-
-				if err = c.WriteJSON(re); err != nil {
-					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-					break LOOP
-				}
+			s.Websocketlog("Received EKE message with ID type: %d", m.IDType)
+			resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
+			if len(resp) == 0 {
+				s.Websocketlog("Received empty response from apfell, exiting..")
+				break LOOP
 			}
 
-			if m.IDType == SESSIDType {
-				// Post the encrypted checkin data to apfell and return the checkin metadata
-				s.Websocketlog("Received EKE message with Session ID")
-				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
-				if len(resp) == 0 {
-					s.Websocketlog("Received empty response from apfell, exiting..")
-					break LOOP
-				}
+			re := Message{}
+			re.Data = string(resp)
+			re.MType = EKE
 
-				re := Message{}
-				re.Data = string(resp)
-				re.MType = EKE
-
-				if err = c.WriteJSON(re); err != nil {
-					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-					break LOOP
-				}
+			if err = c.WriteJSON(re); err != nil {
+				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+				break LOOP
 			}
 
 			break
 
 		case AES:
 			// Facilitate the AES checkin
-			s.Websocketlog("Received AESPSK msg with UUID")
-			if m.IDType == UUIDType {
-				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/aes_psk/%s", m.ID), []byte(m.Data))
-				if len(resp) == 0 {
-					s.Websocketlog("Received empty response from apfell")
-					break LOOP
-				}
+			s.Websocketlog("Received AESPSK msg")
 
-				re := Message{}
-				re.Data = string(resp)
-				re.MType = AES
-
-				if err = c.WriteJSON(re); err != nil {
-					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-					break LOOP
-				}
+			resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/aes_psk/%s", m.ID), []byte(m.Data))
+			if len(resp) == 0 {
+				s.Websocketlog("Received empty response from apfell")
+				break LOOP
 			}
+
+			re := Message{}
+			re.Data = string(resp)
+			re.MType = AES
+
+			if err = c.WriteJSON(re); err != nil {
+				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+				break LOOP
+			}
+
 			break
 
 		case TaskMsg:
 			// Handle task request from client
-			if m.IDType == ApfellIDType {
-				s.Websocketlog("Received Task Msg")
-				apfellid = m.ID
-				resp := s.GetNextTask(m.ID)
 
-				if len(resp) == 0 {
-					s.Websocketlog("Received empty response from Apfell.... retrying ")
-					time.Sleep(time.Duration(s.PollingInterval()) * time.Second)
+			s.Websocketlog("Received Task Msg")
+			resp := s.GetNextTask(m.ID)
 
-					resp = s.GetNextTask(apfellid)
-				}
+			if len(resp) == 0 {
+				s.Websocketlog("Received empty response from Apfell.... retrying ")
+				time.Sleep(time.Duration(s.PollingInterval()) * time.Second)
 
-				re := Message{}
-				re.Data = string(resp)
-				re.MType = TaskMsg
-
-				if err = c.WriteJSON(re); err != nil {
-					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-					break LOOP
-				}
-
+				resp = s.GetNextTask(m.ID)
 			}
+
+			re := Message{}
+			re.Data = string(resp)
+			re.MType = TaskMsg
+
+			if err = c.WriteJSON(re); err != nil {
+				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+				break LOOP
+			}
+
+
 			break
 
 		case ResponseMsg:
 			// Handle task responses
-			if m.IDType == TASKIDType {
-				s.Websocketlog("Received Task response msg")
-				resp := s.htmlPostData(fmt.Sprintf("api/v1.3/responses/%s", m.ID), []byte(m.Data))
 
-				re := Message{}
-				re.Data = string(resp)
-				re.MType = ResponseMsg
+			s.Websocketlog("Received Task response msg")
+			resp := s.htmlPostData(fmt.Sprintf("api/v1.3/responses/%s", m.ID), []byte(m.Data))
 
-				if err = c.WriteJSON(re); err != nil {
-					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-					break LOOP
-				}
+			re := Message{}
+			re.Data = string(resp)
+			re.MType = ResponseMsg
+
+			if err = c.WriteJSON(re); err != nil {
+				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+				break LOOP
 			}
+
 
 			break
 
 		case FileMsg:
 			// Handle file uploads
-			if m.IDType == FileIDType {
-				s.Websocketlog("Received file msg")
-				endpoint := fmt.Sprintf("api/v1.3/files/%d/callbacks/%s", m.ID, apfellid)
-				url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), endpoint)
-				resp := s.htmlGetData(url)
 
-				re := Message{}
-				re.Data = string(resp)
-				re.MType = FileMsg
+			s.Websocketlog("Received file msg")
+			endpoint := fmt.Sprintf("api/v1.3/files/%s/callbacks/%s", m.ID, m.Tag)
+			url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), endpoint)
+			resp := s.htmlGetData(url)
 
-				if err = c.WriteJSON(re); err != nil {
-					s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-					break LOOP
-				}
+			re := Message{}
+			re.Data = string(resp)
+			re.MType = FileMsg
+
+			if err = c.WriteJSON(re); err != nil {
+				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+				break LOOP
 			}
+
 
 			break
 		}

@@ -49,7 +49,6 @@ type Server interface {
 	SetApfellBaseURL(url string)
 	PostResponse(taskid string, output []byte) []byte
 	GetNextTask(apfellID string) []byte
-	SendClientMessage(apfellID string, data []byte)
 	Run(cf interface{})
 }
 
