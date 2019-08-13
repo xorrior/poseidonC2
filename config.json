@@ -6,8 +6,8 @@
     "sslkey":"",
     "sslcert":"",
     "websocketuri": "socket",
-    "slackchannel":"",
-    "slackapitoken":"",
+    "slackchannel":"XXXXXXX",
+    "slackapitoken":"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     "defaultpage": "index.html",
     "logfile": "server.log",
     "debug": true

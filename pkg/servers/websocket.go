@@ -219,7 +219,7 @@ LOOP:
 		switch m.MType {
 		case CheckInMsg:
 			// Forward the checkin data to apfell. This data should not be encrypted
-			s.Websocketlog("Received CheckIn msg")
+			s.Websocketlog(fmt.Sprintf("Received Check in message %+v\n", m))
 			resp := s.htmlPostData("api/v1.3/callbacks/", []byte(m.Data))
 
 			// Create the msg to respond to the client
@@ -239,7 +239,7 @@ LOOP:
 		case EKE:
 			// Peform EKE with apfell
 
-			s.Websocketlog("Received EKE message with ID type: %d", m.IDType)
+			s.Websocketlog(fmt.Sprintf("Received EKE message %+v\n", m))
 			resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
 			if len(resp) == 0 {
 				s.Websocketlog("Received empty response from apfell, exiting..")
@@ -259,7 +259,7 @@ LOOP:
 
 		case AES:
 			// Facilitate the AES checkin
-			s.Websocketlog("Received AESPSK msg")
+			s.Websocketlog(fmt.Sprintf("Received AES message %+v\n", m))
 
 			resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/aes_psk/%s", m.ID), []byte(m.Data))
 			if len(resp) == 0 {
@@ -281,7 +281,7 @@ LOOP:
 		case TaskMsg:
 			// Handle task request from client
 
-			s.Websocketlog("Received Task Msg")
+			s.Websocketlog(fmt.Sprintf("Received Task message %+v\n", m))
 			resp := s.GetNextTask(m.ID)
 
 			if len(resp) == 0 {
@@ -306,7 +306,7 @@ LOOP:
 		case ResponseMsg:
 			// Handle task responses
 
-			s.Websocketlog("Received Task response msg")
+			s.Websocketlog(fmt.Sprintf("Received Response message %+v\n", m))
 			resp := s.htmlPostData(fmt.Sprintf("api/v1.3/responses/%s", m.ID), []byte(m.Data))
 
 			re := Message{}
@@ -324,7 +324,7 @@ LOOP:
 		case FileMsg:
 			// Handle file uploads
 
-			s.Websocketlog("Received file msg")
+			s.Websocketlog(fmt.Sprintf("Received File message %+v\n", m))
 			endpoint := fmt.Sprintf("api/v1.3/files/%s/callbacks/%s", m.ID, m.Tag)
 			url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), endpoint)
 			resp := s.htmlGetData(url)

