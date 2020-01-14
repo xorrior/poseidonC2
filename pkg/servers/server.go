@@ -1,30 +1,5 @@
 package servers
 
-const (
-	//CheckInMsg - Messages for apfell
-	CheckInMsg = 0
-	//EKE - Messages for apfell EKE AES
-	EKE = 1
-	//AES - Messages for apfell static AES
-	AES = 2
-	//TaskMsg - Messages for apfell tasks
-	TaskMsg = 3
-	//ResponseMsg - Messages for apfell task responses
-	ResponseMsg = 4
-	//FileMsg - Messages for apfell file downloads/uploads
-	FileMsg = 5
-	// ID Type for UUID
-	UUIDType = 6
-	// ID Type for ApfellID
-	ApfellIDType = 7
-	// ID Type for FileID
-	FileIDType = 8
-	// ID Type for session ID
-	SESSIDType = 9
-	// ID Type for Task ID
-	TASKIDType = 10
-)
-
 var ApiVersion = "v1.4"
 
 // C2Config - struct for server configuration
@@ -50,6 +25,7 @@ type Server interface {
 	ApfellBaseURL() string
 	SetApfellBaseURL(url string)
 	PostResponse(taskid string, output []byte) []byte
+	PostMessage(msg []byte) []byte
 	GetNextTask(apfellID string) []byte
 	Run(cf interface{})
 }

