@@ -25,20 +25,22 @@ const (
 	TASKIDType = 10
 )
 
+var ApiVersion = "v1.4"
+
 // C2Config - struct for server configuration
 type C2Config struct {
-	PollInterval int    `json:"pollinterval"`
-	BaseURL      string `json:"baseurl"`
-	BindAddress  string `json:"bindaddress"`
-	SocketURI    string `json:"websocketuri"`
-	SlackChannel string `json:"slackchannel"`
+	PollInterval  int    `json:"pollinterval"`
+	BaseURL       string `json:"baseurl"`
+	BindAddress   string `json:"bindaddress"`
+	SocketURI     string `json:"websocketuri"`
+	SlackChannel  string `json:"slackchannel"`
 	SlackAPIToken string `json:"slackapitoken"`
-	SSLKey       string `json:"sslkey"`
-	SSLCert      string `json:"sslcert"`
-	UseSSL       bool   `json:"usessl"`
-	Defaultpage  string `json:"defaultpage"`
-	Logfile      string `json:"logfile"`
-	Debug        bool   `json:"debug"`
+	SSLKey        string `json:"sslkey"`
+	SSLCert       string `json:"sslcert"`
+	UseSSL        bool   `json:"usessl"`
+	Defaultpage   string `json:"defaultpage"`
+	Logfile       string `json:"logfile"`
+	Debug         bool   `json:"debug"`
 }
 
 //Server - interface used for all c2 profiles
@@ -55,10 +57,7 @@ type Server interface {
 //Message - struct definition for messages between clients and the server
 type Message struct {
 	Tag    string `json:"tag"`
-	MType  int    `json:"mtype"`
-	IDType int    `json:"idtype"`
-	ID     string `json:"id"`
-	Client bool `json:"client"`
+	Client bool   `json:"client"`
 	Data   string `json:"data"`
 }
 

