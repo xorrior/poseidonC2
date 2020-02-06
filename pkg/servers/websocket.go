@@ -4,12 +4,9 @@ package servers
 
 import (
 	"bytes"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -73,12 +70,12 @@ func (s *WebsocketC2) PostMessage(msg []byte) []byte {
 
 func (s WebsocketC2) GetNextTask(apfellID string) []byte {
 	//place holder
-	url := fmt.Sprintf("%sapi/v%s/agent_message", s.ApfellBaseURL(), ApiVersion)
-	return s.htmlPostData(url)
+	//url := fmt.Sprintf("%sapi/v%s/agent_message", s.ApfellBaseURL(), ApiVersion)
+	return make([]byte, 0)
 }
 
 func (s WebsocketC2) PostResponse(taskid string, output []byte) []byte {
-	urlEnding := fmt.Sprintf("api/v%s/agent_message", ApiVersion)
+	//urlEnding := fmt.Sprintf("api/v%s/agent_message", ApiVersion)
 	return output
 }
 
@@ -203,7 +200,6 @@ LOOP:
 			s.Websocketlog(fmt.Sprintf("Received agent message %+v\n", m))
 			resp = s.PostMessage([]byte(m.Data))
 		}
-		
 
 		reply := Message{Client: false}
 
@@ -215,12 +211,11 @@ LOOP:
 
 		reply.Tag = m.Tag
 
-
-		if err = c.WriteJSON(re); err != nil {
+		if err = c.WriteJSON(reply); err != nil {
 			s.Websocketlog(fmt.Sprintf("Error writing json to client %s", err.Error()))
 			break LOOP
 		}
-		
+
 	}
 
 	c.Close()
