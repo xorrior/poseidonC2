@@ -1,6 +1,6 @@
 package servers
 
-var ApiVersion = "v1.4"
+var ApiVersion = "1.4"
 
 // C2Config - struct for server configuration
 type C2Config struct {
