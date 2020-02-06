@@ -66,7 +66,7 @@ func (s *WebsocketC2) SetSocketURI(uri string) {
 	s.SocketURI = uri
 }
 
-func (s *WebsocketC2) PostMessage([]byte msg) []byte {
+func (s *WebsocketC2) PostMessage(msg []byte) []byte {
 	urlEnding := fmt.Sprintf("api/v%s/agent_message", ApiVersion)
 	return s.htmlPostData(urlEnding, msg)
 }
@@ -84,9 +84,7 @@ func (s WebsocketC2) PostResponse(taskid string, output []byte) []byte {
 
 //postRESTResponse - Wrapper to post task responses through the Apfell rest API
 func (s *WebsocketC2) postRESTResponse(urlEnding string, data []byte) []byte {
-	
-
-	return data
+	return make([]byte, 0)
 }
 
 //htmlPostData HTTP POST function
