@@ -213,6 +213,7 @@ func (s *WebsocketC2) manageClient(c *websocket.Conn) {
 LOOP:
 	for {
 		// Wait for the client to send the initial checkin message
+		time.Sleep(time.Duration(s.PollingInterval()) * time.Second)
 		m := Message{}
 		err := c.ReadJSON(&m)
 

