@@ -4,27 +4,26 @@ package servers
 
 import (
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/kabukky/httpscerts"
 )
 
 type WebsocketC2 struct {
-	PollInterval int
-	BaseURL      string
-	BindAddress  string
-	SSL          bool
-	SocketURI    string
-	Defaultpage  string
-	Logfile      string
-	Debug        bool
+	BaseURL     string
+	BindAddress string
+	SSL         bool
+	SocketURI   string
+	Defaultpage string
+	Logfile     string
+	Debug       bool
 }
 
 var logger *log.Logger
@@ -93,7 +92,10 @@ func (s *WebsocketC2) htmlPostData(urlEnding string, sendData []byte) []byte {
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(sendData))
 	contentLength := len(sendData)
 	req.ContentLength = int64(contentLength)
-	client := &http.Client{}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 	resp, err := client.Do(req)
 
 	if err != nil {
@@ -121,7 +123,10 @@ func (s *WebsocketC2) htmlPostData(urlEnding string, sendData []byte) []byte {
 //htmlGetData - HTTP GET request for data
 func (s *WebsocketC2) htmlGetData(url string) []byte {
 	//log.Println("Sending HTML GET request to url: ", url)
-	client := &http.Client{}
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
 	var respBody []byte
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -186,7 +191,6 @@ func (s *WebsocketC2) manageClient(c *websocket.Conn) {
 LOOP:
 	for {
 		// Wait for the client to send the initial checkin message
-		time.Sleep(time.Duration(s.PollingInterval()) * time.Second)
 		m := Message{}
 		err := c.ReadJSON(&m)
 
